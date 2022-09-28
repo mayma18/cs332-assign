@@ -81,21 +81,25 @@ trait Huffman extends HuffmanInterface {
    * of a leaf is the frequency of the character.
    */
 
-  def adder(char: Char, list :List[(Char, Int)]): List[(Char, Int)]=
-    list match {
-      case Nil => (char, 1) :: Nil
-      case (x,y) ::xs => if (x == char) (x,y+1) :: xs else (x,y) :: adder(char,xs)
+
+
+  def applyAux[T]( ls: List[T], apply: (T)=> T): List[T]= 
+    ls match{
+    case Nil => Nil
+    case x :: xs => apply(x)::applyAux(xs,apply)
+    }
+  
+
+  def timesAcc (chars: List[Char], acc : List[(Char, Int)]) : List[(Char, Int)]=
+    chars match{
+    case Nil => acc
+    case x :: xs => 
+      val temp = applyAux(acc, (y : (Char, Int))=> if (x.equals(y._1)) (y._1, y._2+1) else (y._1,y._2)) 
+      if (temp.equals(acc)) timesAcc(xs,(x,1)::acc) else timesAcc(xs,temp)    
     }
 
-
-  def times(chars: List[Char]): List[(Char, Int)] ={
-    def innerFct(charss : List[Char], acc : List[(Char, Int)]) : List[(Char, Int)] = 
-      charss match {
-        case Nil => Nil
-        case x :: xs => innerFct(xs,adder(x,acc))
-      }
-    innerFct(chars, Nil)
-  }
+  def times(chars: List[Char]): List[(Char, Int)] =
+    timesAcc(chars, Nil)
 
 
 
@@ -218,7 +222,7 @@ trait Huffman extends HuffmanInterface {
 
 
 
- def helper (tree: CodeTree, char: Char, acc: List[Bit]): List[Bit]=
+  def helper (tree: CodeTree, char: Char, acc: List[Bit]): List[Bit]=
     tree match {
       case Leaf (chars, weight) => if (chars.equals(char))  acc else Nil // donc on peut retourner une liste vide 
       case Fork(left, right, charss, weight) => if (chars(left).contains(char))  helper(left, char, acc.appended(0)) else  helper(right, char, acc.appended(1)) 
@@ -243,7 +247,8 @@ trait Huffman extends HuffmanInterface {
    * This function returns the bit sequence that represents the character `char` in
    * the code table `table`.
    */
-  def codeBits(table: CodeTable)(char: Char): List[Bit] = ???
+  def codeBits(table: CodeTable)(char: Char): List[Bit] = 
+    if (table.isEmpty)  Nil else if (table.head._1.equals(char)) table.head._2 else codeBits(table.tail)(char)
 
   /**
    * Given a code tree, create a code table which contains, for every character in the
@@ -253,14 +258,23 @@ trait Huffman extends HuffmanInterface {
    * a valid code tree that can be represented as a code table. Using the code tables of the
    * sub-trees, think of how to build the code table for the entire tree.
    */
-  def convert(tree: CodeTree): CodeTable = ???
+  def convert(tree: CodeTree): CodeTable ={ 
+    def convertAcc(tree: CodeTree, acc: List[Bit]): CodeTable =
+      tree match {
+        case Leaf(char, weight) => (char, acc) :: Nil
+        case Fork(left, right, chars, weight)=> mergeCodeTables(convertAcc(right, acc.appended(1)), convertAcc(left, acc.appended(0)))
+      }
+    convertAcc(tree, Nil)
+  }
+
 
   /**
    * This function takes two code tables and merges them into one. Depending on how you
    * use it in the `convert` method above, this merge method might also do some transformations
    * on the two parameter code tables.
    */
-  def mergeCodeTables(a: CodeTable, b: CodeTable): CodeTable = ???
+  def mergeCodeTables(a: CodeTable, b: CodeTable): CodeTable =
+     a ::: b
 
   /**
    * This function encodes `text` according to the code tree `tree`.
@@ -268,7 +282,13 @@ trait Huffman extends HuffmanInterface {
    * To speed up the encoding process, it first converts the code tree to a code table
    * and then uses it to perform the actual encoding.
    */
-  def quickEncode(tree: CodeTree)(text: List[Char]): List[Bit] = ???
+  def quickEncode(tree: CodeTree)(text: List[Char]): List[Bit] = {
+   
+    def f( code: CodeTable, text : List[Char]):List[Bit] = 
+      if (text.isEmpty)  Nil else (codeBits(code)(text.head)) ::: f(code, text.tail)
+
+    f(convert(tree), text) // pour ne pas a avoir a le calculer plusieurs fois
+  }
 }
 
-object Huffman extends Huffman
+  object Huffman extends Huffman
